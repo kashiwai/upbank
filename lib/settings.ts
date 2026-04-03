@@ -1,7 +1,9 @@
+import { getSupabase } from './supabase'
+
 export interface AppSettings {
-  krakenWithdrawKey: string   // Krakenに登録した出金先の名前
-  minAudThreshold: number     // 最低実行金額（AUD）
-  autoEnabled: boolean        // 自動実行のON/OFF
+  krakenWithdrawKey: string
+  minAudThreshold: number
+  autoEnabled: boolean
 }
 
 export interface ExecutionLog {
@@ -21,63 +23,73 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoEnabled: true,
 }
 
-const SETTINGS_KEY = 'upbank:settings'
-const LOGS_KEY = 'upbank:logs'
-
-// KVが設定されているか確認
-function hasKV(): boolean {
-  return !!process.env.KV_REST_API_URL
-}
-
-// フォールバック用インメモリストレージ（ローカル開発用）
-const memory = {
-  settings: { ...DEFAULT_SETTINGS } as AppSettings,
-  logs: [] as ExecutionLog[],
-}
-
 export async function getSettings(): Promise<AppSettings> {
-  if (!hasKV()) return memory.settings
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('app_settings')
+    .select('*')
+    .eq('id', 1)
+    .single()
 
-  const { kv } = await import('@vercel/kv')
-  const saved = await kv.get<AppSettings>(SETTINGS_KEY)
-  return { ...DEFAULT_SETTINGS, ...saved }
+  if (error || !data) return DEFAULT_SETTINGS
+  return {
+    krakenWithdrawKey: data.kraken_withdraw_key ?? '',
+    minAudThreshold: data.min_aud_threshold ?? 10,
+    autoEnabled: data.auto_enabled ?? true,
+  }
 }
 
 export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
-  const current = await getSettings()
-  const updated = { ...current, ...patch }
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('app_settings')
+    .upsert({
+      id: 1,
+      kraken_withdraw_key: patch.krakenWithdrawKey,
+      min_aud_threshold: patch.minAudThreshold,
+      auto_enabled: patch.autoEnabled,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
+    .select()
+    .single()
 
-  if (!hasKV()) {
-    memory.settings = updated
-    return updated
+  if (error || !data) throw new Error('設定の保存に失敗しました')
+  return {
+    krakenWithdrawKey: data.kraken_withdraw_key,
+    minAudThreshold: data.min_aud_threshold,
+    autoEnabled: data.auto_enabled,
   }
-
-  const { kv } = await import('@vercel/kv')
-  await kv.set(SETTINGS_KEY, updated)
-  return updated
 }
 
 export async function addExecutionLog(log: Omit<ExecutionLog, 'id'>): Promise<void> {
-  const entry: ExecutionLog = {
-    id: Date.now().toString(),
-    ...log,
-  }
-
-  if (!hasKV()) {
-    memory.logs.unshift(entry)
-    if (memory.logs.length > 50) memory.logs = memory.logs.slice(0, 50)
-    return
-  }
-
-  const { kv } = await import('@vercel/kv')
-  const existing = (await kv.get<ExecutionLog[]>(LOGS_KEY)) ?? []
-  const updated = [entry, ...existing].slice(0, 50) // 最大50件
-  await kv.set(LOGS_KEY, updated)
+  const sb = getSupabase()
+  await sb.from('execution_logs').insert({
+    status: log.status,
+    message: log.message,
+    aud_amount: log.audAmount ?? null,
+    usdt_withdrawn: log.usdtWithdrawn ?? null,
+    kraken_txid: log.krakenTxid ?? null,
+    withdraw_refid: log.withdrawRefid ?? null,
+  })
 }
 
 export async function getExecutionLogs(): Promise<ExecutionLog[]> {
-  if (!hasKV()) return memory.logs
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('execution_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
 
-  const { kv } = await import('@vercel/kv')
-  return (await kv.get<ExecutionLog[]>(LOGS_KEY)) ?? []
+  if (error || !data) return []
+  return data.map(row => ({
+    id: String(row.id),
+    timestamp: row.created_at,
+    status: row.status,
+    message: row.message,
+    audAmount: row.aud_amount ?? undefined,
+    usdtWithdrawn: row.usdt_withdrawn ?? undefined,
+    krakenTxid: row.kraken_txid ?? undefined,
+    withdrawRefid: row.withdraw_refid ?? undefined,
+  }))
 }
