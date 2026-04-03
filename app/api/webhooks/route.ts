@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
+import { getSupabase } from '@/lib/supabase'
 
-// Up Bank webhook signature verification
-// https://developer.up.com.au/#webhooks
 function verifySignature(body: string, signature: string, secret: string): boolean {
   const expected = createHmac('sha256', secret).update(body).digest('hex')
   try {
-    const { timingSafeEqual } = require('crypto')
     return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'))
   } catch {
     return expected === signature
@@ -30,9 +28,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  console.log('Up Bank webhook event:', JSON.stringify(event, null, 2))
+  const eventType = (event?.data as Record<string, unknown>)?.type as string
+  console.log('Up Bank webhook:', eventType)
 
-  // In a stateless Vercel deployment, we just acknowledge the event.
-  // The dashboard polls every 30 seconds to pick up new data.
+  // PING以外のトランザクションイベントをSupabaseに保存 → Realtimeで全クライアントに通知
+  if (eventType && eventType !== 'PING') {
+    try {
+      const data = event.data as Record<string, unknown>
+      const relationships = data?.relationships as Record<string, unknown>
+      const transactionId = (relationships?.transaction as Record<string, unknown>)?.data
+        ? ((relationships.transaction as Record<string, unknown>).data as Record<string, unknown>)?.id as string
+        : null
+
+      const sb = getSupabase()
+      await sb.from('webhook_events').insert({
+        event_type: eventType,
+        transaction_id: transactionId ?? null,
+      })
+    } catch (err) {
+      console.error('Supabase insert error:', err)
+    }
+  }
+
   return NextResponse.json({ ok: true }, { status: 200 })
 }

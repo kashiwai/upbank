@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { AccountCard } from './AccountCard'
 import { TransactionList } from './TransactionList'
 import { KrakenPanel } from './KrakenPanel'
+import { DepositNotification } from './DepositNotification'
 import type { UpAccount, UpTransaction } from '@/lib/upbank'
 
 const REFRESH_INTERVAL = 30 // seconds
@@ -142,6 +143,15 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* リアルタイム入金通知 */}
+      <DepositNotification
+        onExecute={async () => {
+          await fetch('/api/kraken/execute', { method: 'POST' })
+          refresh()
+        }}
+        isExecuting={false}
+      />
+
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
