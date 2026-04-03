@@ -5,6 +5,7 @@ import { AccountCard } from './AccountCard'
 import { TransactionList } from './TransactionList'
 import { KrakenPanel } from './KrakenPanel'
 import { DepositNotification } from './DepositNotification'
+import { WebhookManager } from './WebhookManager'
 import type { UpAccount, UpTransaction } from '@/lib/upbank'
 
 const REFRESH_INTERVAL = 30 // seconds
@@ -252,6 +253,9 @@ export function Dashboard() {
             )}
           </section>
         )}
+
+        {/* Webhook登録 */}
+        <WebhookManager />
 
         {/* Kraken */}
         <KrakenPanel />
