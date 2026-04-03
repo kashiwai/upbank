@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 import { COOKIE_NAME } from '@/lib/auth'
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/webhooks']
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/webhooks', '/api/cron']
 
 function getSecret(): Uint8Array {
   const secret = process.env.AUTH_SECRET

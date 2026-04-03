@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { AccountCard } from './AccountCard'
 import { TransactionList } from './TransactionList'
+import { KrakenPanel } from './KrakenPanel'
 import type { UpAccount, UpTransaction } from '@/lib/upbank'
 
 const REFRESH_INTERVAL = 30 // seconds
@@ -241,6 +242,9 @@ export function Dashboard() {
             )}
           </section>
         )}
+
+        {/* Kraken */}
+        <KrakenPanel />
 
         {/* Transactions */}
         <section>
