@@ -5,6 +5,12 @@ const BASE_URL = 'https://api.kraken.com'
 // AUD/USDT pair name on Kraken
 export const USDT_AUD_PAIR = 'USDTAUD'
 
+// Tron (TRC-20) アドレスの検証
+// TronアドレスはTで始まる34文字のBase58文字列
+export function isValidTronAddress(address: string): boolean {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
+}
+
 function getCredentials() {
   const apiKey = process.env.KRAKEN_API_KEY
   const apiSecret = process.env.KRAKEN_API_SECRET
@@ -73,9 +79,14 @@ export async function buyUSDTWithAUD(audAmount: number): Promise<{ txid: string;
   return { txid: result.txid[0], audSpent: spendAmount }
 }
 
-// USDTをウォレットへ出金
-// key = Krakenアカウントで事前登録した出金先名称
-export async function withdrawUSDT(key: string, amount: string): Promise<string> {
+// USDT (TRC-20 / Tron) をウォレットへ出金
+// key = Krakenアカウントで「USDT TRC-20」として事前登録した出金先名称
+// Krakenに登録する際は必ずネットワーク「Tron (TRC-20)」を選択すること
+export async function withdrawUSDT(key: string, amount: string, tronAddress: string): Promise<string> {
+  if (!isValidTronAddress(tronAddress)) {
+    throw new Error(`無効なTronアドレスです: ${tronAddress} (Tで始まる34文字である必要があります)`)
+  }
+
   const result = await privateRequest<{ refid: string }>('Withdraw', {
     asset: 'USDT',
     key,
@@ -84,13 +95,15 @@ export async function withdrawUSDT(key: string, amount: string): Promise<string>
   return result.refid
 }
 
-// 出金先一覧を取得（Krakenに登録済みのアドレス名を確認用）
+// 出金先一覧を取得（TRC-20として登録済みのアドレス名を確認用）
 export async function getWithdrawAddresses(): Promise<Array<{ key: string; address: string }>> {
   try {
     const result = await privateRequest<Array<{ key: string; address: string }>>('WithdrawAddresses', {
       asset: 'USDT',
     })
-    return Array.isArray(result) ? result : []
+    // Tronアドレス（Tで始まる）のみ返す
+    const all = Array.isArray(result) ? result : []
+    return all.filter(a => isValidTronAddress(a.address))
   } catch {
     return []
   }

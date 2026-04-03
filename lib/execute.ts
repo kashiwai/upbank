@@ -1,4 +1,4 @@
-import { getKrakenBalance, buyUSDTWithAUD, withdrawUSDT } from './kraken'
+import { getKrakenBalance, buyUSDTWithAUD, withdrawUSDT, isValidTronAddress } from './kraken'
 import { getSettings, addExecutionLog } from './settings'
 
 // メイン実行ロジック（自動・手動共通）
@@ -10,7 +10,13 @@ export async function executeKrakenTransfer(): Promise<{
   const settings = await getSettings()
 
   if (!settings.krakenWithdrawKey) {
-    const msg = '出金先が未設定です。設定パネルで Kraken 出金先キー名を入力してください。'
+    const msg = '出金先キー名が未設定です。設定パネルで Kraken TRC-20 出金先キー名を入力してください。'
+    await addExecutionLog({ timestamp: new Date().toISOString(), status: 'skipped', message: msg })
+    return { status: 'skipped', message: msg }
+  }
+
+  if (!settings.tronAddress || !isValidTronAddress(settings.tronAddress)) {
+    const msg = '有効なTronアドレス（TRC-20）が未設定です。Tで始まる34文字のアドレスを設定してください。'
     await addExecutionLog({ timestamp: new Date().toISOString(), status: 'skipped', message: msg })
     return { status: 'skipped', message: msg }
   }
@@ -64,7 +70,7 @@ export async function executeKrakenTransfer(): Promise<{
   // USDT出金
   let refid
   try {
-    refid = await withdrawUSDT(settings.krakenWithdrawKey, usdtToWithdraw.toFixed(6))
+    refid = await withdrawUSDT(settings.krakenWithdrawKey, usdtToWithdraw.toFixed(6), settings.tronAddress)
   } catch (err) {
     const msg = `USDT出金エラー: ${err instanceof Error ? err.message : String(err)}`
     await addExecutionLog({

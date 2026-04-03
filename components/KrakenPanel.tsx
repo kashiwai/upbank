@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { AppSettings, ExecutionLog } from '@/lib/settings'
 
+function isValidTronAddress(addr: string): boolean {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)
+}
+
 interface KrakenBalance {
   AUD: number
   USDT: number
@@ -45,6 +49,7 @@ export function KrakenPanel() {
   const [executeResult, setExecuteResult] = useState<{ status: string; message: string } | null>(null)
   const [form, setForm] = useState<AppSettings>({
     krakenWithdrawKey: '',
+    tronAddress: '',
     minAudThreshold: 10,
     autoEnabled: true,
   })
@@ -223,33 +228,67 @@ export function KrakenPanel() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
           <h3 className="font-semibold text-gray-800">Kraken 送金設定</h3>
 
+          {/* TRC-20バッジ */}
+          <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            <span className="text-lg">🔴</span>
+            <div>
+              <p className="text-sm font-semibold text-red-700">Tron (TRC-20) 専用</p>
+              <p className="text-xs text-red-500">出金はすべて Tron ネットワーク (TRC-20) で行われます</p>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              出金先キー名（Krakenに登録済みのアドレス名）
+              送金先 Tron (TRC-20) アドレス
+            </label>
+            <input
+              type="text"
+              value={form.tronAddress}
+              onChange={e => setForm(f => ({ ...f, tronAddress: e.target.value.trim() }))}
+              placeholder="T から始まる 34 文字のアドレス"
+              className={`w-full px-4 py-2.5 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                form.tronAddress && !isValidTronAddress(form.tronAddress)
+                  ? 'border-red-300 bg-red-50 text-red-700'
+                  : form.tronAddress && isValidTronAddress(form.tronAddress)
+                  ? 'border-emerald-300 bg-emerald-50'
+                  : 'border-gray-200'
+              }`}
+            />
+            {form.tronAddress && !isValidTronAddress(form.tronAddress) && (
+              <p className="text-xs text-red-500 mt-1">⚠️ 無効なTronアドレスです（Tで始まる34文字）</p>
+            )}
+            {form.tronAddress && isValidTronAddress(form.tronAddress) && (
+              <p className="text-xs text-emerald-600 mt-1">✓ 有効なTronアドレスです</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Kraken 出金先キー名（TRC-20で登録済みのもの）
             </label>
             <input
               type="text"
               value={form.krakenWithdrawKey}
               onChange={e => setForm(f => ({ ...f, krakenWithdrawKey: e.target.value }))}
-              placeholder="例: my-usdt-wallet"
+              placeholder="例: my-tron-wallet"
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 text-sm"
             />
             {settingsData?.addresses && settingsData.addresses.length > 0 && (
               <div className="mt-2">
-                <p className="text-xs text-gray-400 mb-1">登録済みアドレス:</p>
+                <p className="text-xs text-gray-400 mb-1">Krakenに登録済みのTRC-20アドレス:</p>
                 {settingsData.addresses.map(a => (
                   <button
                     key={a.key}
-                    onClick={() => setForm(f => ({ ...f, krakenWithdrawKey: a.key }))}
+                    onClick={() => setForm(f => ({ ...f, krakenWithdrawKey: a.key, tronAddress: a.address }))}
                     className="text-xs text-purple-600 hover:underline mr-3"
                   >
-                    {a.key}
+                    {a.key} ({a.address.slice(0, 6)}...{a.address.slice(-4)})
                   </button>
                 ))}
               </div>
             )}
             <p className="text-xs text-gray-400 mt-1.5">
-              Kraken アカウント → 出金 → 出金アドレス管理 で事前登録が必要です
+              Kraken → 出金 → アドレス管理 → 新規追加 でネットワーク「Tron (TRC-20)」を選択して登録
             </p>
           </div>
 
@@ -286,7 +325,7 @@ export function KrakenPanel() {
 
           <button
             onClick={handleSaveSettings}
-            disabled={isSaving}
+            disabled={isSaving || (!!form.tronAddress && !isValidTronAddress(form.tronAddress))}
             className="w-full py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 disabled:opacity-50 transition-colors"
           >
             {isSaving ? '保存中...' : '設定を保存'}

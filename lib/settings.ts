@@ -1,7 +1,8 @@
 import { getSupabase } from './supabase'
 
 export interface AppSettings {
-  krakenWithdrawKey: string
+  krakenWithdrawKey: string   // Krakenに登録したTRC-20出金先キー名
+  tronAddress: string         // 実際のTronウォレットアドレス（T...）
   minAudThreshold: number
   autoEnabled: boolean
 }
@@ -19,6 +20,7 @@ export interface ExecutionLog {
 
 const DEFAULT_SETTINGS: AppSettings = {
   krakenWithdrawKey: '',
+  tronAddress: '',
   minAudThreshold: 10,
   autoEnabled: true,
 }
@@ -34,6 +36,7 @@ export async function getSettings(): Promise<AppSettings> {
   if (error || !data) return DEFAULT_SETTINGS
   return {
     krakenWithdrawKey: data.kraken_withdraw_key ?? '',
+    tronAddress: data.tron_address ?? '',
     minAudThreshold: data.min_aud_threshold ?? 10,
     autoEnabled: data.auto_enabled ?? true,
   }
@@ -46,6 +49,7 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
     .upsert({
       id: 1,
       kraken_withdraw_key: patch.krakenWithdrawKey,
+      tron_address: patch.tronAddress,
       min_aud_threshold: patch.minAudThreshold,
       auto_enabled: patch.autoEnabled,
       updated_at: new Date().toISOString(),
@@ -56,6 +60,7 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
   if (error || !data) throw new Error('設定の保存に失敗しました')
   return {
     krakenWithdrawKey: data.kraken_withdraw_key,
+    tronAddress: data.tron_address,
     minAudThreshold: data.min_aud_threshold,
     autoEnabled: data.auto_enabled,
   }
